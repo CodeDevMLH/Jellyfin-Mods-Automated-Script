@@ -1,0 +1,47 @@
+# Target directory for operations
+destination_directory: './target_directory'
+
+# Copy rules
+copy_rules:
+  - sources:
+      # Simple source with target path beginning from destination directory
+      - './source_folder' # Entire folder
+      - './specific_file.txt'  # Single file
+      - './source_directory/.*.js'  # All JS files
+      
+      # Complex configuration with explicit source and target path
+      - source: './specific_file.txt'
+        target: './target_directory/renamed_file.txt'
+      
+      # Wildcard (.*) copy with specific target path
+      - source: './source_directory/.*.js'
+        target: './target_directory/js_files'
+    
+    mode: 'replace'  # Overwrites existing files/folders
+
+  - sources:
+      - './source_folder'  # Entire folder
+      - './specific_file.txt'  # Single file
+      - './source_directory/*.js'  # All JS files
+    mode: 'copy'  # Copies files/folders
+
+# Modification rules
+modification_rules:
+  - file_pattern: '.*.html$' # all html files $ indicates end of string
+    # Insert rules
+    insert_rules:
+      - after_text: '<body>'  # Insert after this text
+        insert_text: '<div class="new-banner">Additional content</div>' # Insert this text
+
+      - before_text: 'function initializeApp() {' # Insert before this text
+        insert_text: 'New initialization preparations'  # Insert this text
+    
+    # Replace rules
+    replace_rules:
+      - old_text: '<title>Title</title>'  # Replace this text
+        new_text: '<title>New Title</title>' # With this text
+  
+  - file_pattern: '\.js$'
+    replace_rules:
+      - old_text: 'const version = "1.0.0";'
+        new_text: 'const version = "2.0.0";'
