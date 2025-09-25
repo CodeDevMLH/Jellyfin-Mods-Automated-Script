@@ -3,7 +3,7 @@
 
 This Python script is designed to automate the process of copying and modifying files and directories based on rules defined in a YAML configuration file.
 
-It's main intention is the ability to automate the modifying process of the Jellyfin web directory after every new release (take a look at [CodeDevMLH/Jellyfin-Seasonals](https://github.com/CodeDevMLH/Jellyfin-Seasonals) or [BobHasNoSoul-jellyfin-mods](https://github.com/BobHasNoSoul/jellyfin-mods)).
+It's main intention is the ability to automate the modifying process of the Jellyfin web directory after every new release (take a look at [CodeDevMLH/Jellyfin-Seasonals](https://github.com/CodeDevMLH/Jellyfin-Seasonals), [CodeDevMLH/Jellyfin-Featured-Content-Bar](https://github.com/CodeDevMLH/Jellyfin-Featured-Content-Bar) or [BobHasNoSoul-jellyfin-mods](https://github.com/BobHasNoSoul/jellyfin-mods)).
 
 Below is an overview of its main functionality and usage:
 
