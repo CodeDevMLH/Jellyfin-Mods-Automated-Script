@@ -111,8 +111,33 @@ def copySources(config, destinationDirectory):
                         shutil.copytree(sourcePath, targetPath)
                         results['copies'] += 1
                     else:
-                        print(f"{Colors.YELLOW}Skipping directory copy: {sourcePath} -> {targetPath} (already exists){Colors.RESET}")
-                        errorList['copyWarnings'] += 1
+                        mode = rule.get('mode')
+                        if mode == 'replace':
+                            # handled earlier
+                            print(f"{Colors.YELLOW}Unexpected existing directory in replace mode (already handled): {targetPath}{Colors.RESET}")
+                            errorList['copyWarnings'] += 1
+                        elif mode in ('copy','merge'):
+                            added = 0
+                            for rootDir, subdirs, files in os.walk(sourcePath):
+                                relRoot = os.path.relpath(rootDir, sourcePath)
+                                relRoot = '' if relRoot == '.' else relRoot
+                                destRoot = os.path.join(targetPath, relRoot) if relRoot else targetPath
+                                ensureDirectory(destRoot)
+                                for fname in files:
+                                    srcFile = os.path.join(rootDir, fname)
+                                    destFile = os.path.join(destRoot, fname)
+                                    if not os.path.exists(destFile):
+                                        shutil.copy2(srcFile, destFile)
+                                        added += 1
+                            if added:
+                                print(f"{Colors.GREEN}Added {added} new file(s) into existing directory (copy merge behavior): {targetPath}{Colors.RESET}")
+                                results['copies'] += added
+                            else:
+                                print(f"{Colors.YELLOW}Directory already up to date (no new files): {targetPath}{Colors.RESET}")
+                                errorList['copyWarnings'] += 1
+                        else:
+                            print(f"{Colors.YELLOW}Skipping directory copy (mode {mode}): already exists {targetPath}{Colors.RESET}")
+                            errorList['copyWarnings'] += 1
                 else:
                     if not os.path.exists(targetPath):
                         print(f"{Colors.GREEN}Copying file: {sourcePath} -> {targetPath}{Colors.RESET}")
@@ -146,6 +171,16 @@ def copySources(config, destinationDirectory):
 
 
 # MARK: Modify files
+def _is_regex(marker: str) -> bool:
+    """Return True if the marker is flagged as regex (prefix 're:')."""
+    return isinstance(marker, str) and marker.startswith('re:')
+
+
+def _extract_pattern(marker: str) -> str:
+    """Strip the 're:' prefix and return the regex pattern."""
+    return marker[3:]
+
+
 def modifyFiles(config, destinationDirectory):
     """Modify files according to modification rules."""
     print(f"{Colors.YELLOW}Starting file modification process...{Colors.RESET}")
@@ -165,52 +200,115 @@ def modifyFiles(config, destinationDirectory):
                         with open(filePath, 'r', encoding='utf-8') as f:
                             content = f.read()
 
-                        # Perform text replacements
+                        # Perform text replacements / insertions
                         for insertRule in rule.get('insert_rules', []):
+                            # AFTER TEXT INSERTION
                             if 'after_text' in insertRule:
-                                after_text = insertRule['after_text']
-                                insert_text = insertRule['insert_text']
-                                if after_text not in content:           #if not re.search(after_text, content):     # for use of * wildcard in text
-                                    raise ValueError(f"Text '{after_text}' not found in file: {filePath}")
-                                elif insert_text not in content:
-                                    print(f"  {Colors.GREEN}Inserting text after: {after_text} {Colors.YELLOW}+ ->{Colors.GREEN} {insert_text}{Colors.RESET}")
-                                    content = content.replace(after_text, after_text + insert_text.replace('\n', ''))
+                                raw_after = insertRule['after_text']
+                                insert_text = insertRule['insert_text'].replace('\n', '')
+                                if _is_regex(raw_after):
+                                    pattern = _extract_pattern(raw_after)
+                                    # search first occurrence
+                                    match = re.search(pattern, content, re.DOTALL)
+                                    if not match:
+                                        raise ValueError(f"Regex after_text pattern '{pattern}' not found in file: {filePath}")
+                                    anchor = match.group(0)
+                                    # idempotency check
+                                    if anchor + insert_text in content[match.start():match.start()+len(anchor)+len(insert_text)+5]:
+                                        print(f"  {Colors.YELLOW}Regex after_text already has insertion after anchor.{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
+                                    else:
+                                        print(f"  {Colors.GREEN}Regex inserting after anchor: /{pattern}/ -> {insert_text[:60]}...{Colors.RESET}")
+                                        content = content[:match.end()] + insert_text + content[match.end():]
+                                        results['modifications'] += 1
                                 else:
-                                    print(f"  {Colors.YELLOW}Text already present after: {after_text}{Colors.RESET}")
-                                    errorList['modWarnings'] += 1
+                                    # Plain (substring) variant – use first occurrence only (consistent with replace count=1)
+                                    anchor = raw_after
+                                    idx = content.find(anchor)
+                                    if idx == -1:
+                                        raise ValueError(f"Text '{anchor}' not found in file: {filePath}")
+                                    after_pos = idx + len(anchor)
+                                    # Precise idempotency: is insert_text already directly after anchor?
+                                    if content.startswith(insert_text, after_pos):
+                                        print(f"  {Colors.YELLOW}Plain after_text already directly followed by insertion (idempotent).{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
+                                    else:
+                                        print(f"  {Colors.GREEN}Inserting text after (plain): {anchor[:40]} -> {insert_text[:60]}...{Colors.RESET}")
+                                        content = content[:after_pos] + insert_text + content[after_pos:]
+                                        results['modifications'] += 1
 
-
+                            # BEFORE TEXT INSERTION
                             if 'before_text' in insertRule:
-                                before_text = insertRule['before_text']
-                                insert_text = insertRule['insert_text']
-                                if before_text not in content:
-                                    raise ValueError(f"Text '{before_text}' not found in file: {filePath}")
-                                elif insert_text not in content:
-                                    print(f"  {Colors.GREEN}Inserting text before: {insert_text} {Colors.YELLOW}+ <-{Colors.GREEN} {before_text}{Colors.RESET}")
-                                    content = content.replace(before_text, insert_text.replace('\n', '') + before_text)
+                                raw_before = insertRule['before_text']
+                                insert_text = insertRule['insert_text'].replace('\n', '')
+                                if _is_regex(raw_before):
+                                    pattern = _extract_pattern(raw_before)
+                                    match = re.search(pattern, content, re.DOTALL)
+                                    if not match:
+                                        raise ValueError(f"Regex before_text pattern '{pattern}' not found in file: {filePath}")
+                                    anchor = match.group(0)
+                                    segment_start = max(0, match.start() - len(insert_text) - 5)
+                                    if insert_text + anchor in content[segment_start:match.end()+len(insert_text)]:
+                                        print(f"  {Colors.YELLOW}Regex before_text already has insertion before anchor.{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
+                                    else:
+                                        print(f"  {Colors.GREEN}Regex inserting before anchor: /{pattern}/ <- {insert_text[:60]}...{Colors.RESET}")
+                                        content = content[:match.start()] + insert_text + content[match.start():]
+                                        results['modifications'] += 1
                                 else:
-                                    print(f"  {Colors.YELLOW}Text already present before: {before_text}{Colors.RESET}")
-                                    errorList['modWarnings'] += 1
+                                    # Plain (substring) variant – first occurrence logic
+                                    anchor = raw_before
+                                    idx = content.find(anchor)
+                                    if idx == -1:
+                                        raise ValueError(f"Text '{anchor}' not found in file: {filePath}")
+                                    before_pos = idx
+                                    # Precise idempotency: does insert_text already sit immediately before anchor?
+                                    if before_pos >= len(insert_text) and content[before_pos - len(insert_text): before_pos] == insert_text:
+                                        print(f"  {Colors.YELLOW}Plain before_text already directly preceded by insertion (idempotent).{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
+                                    else:
+                                        print(f"  {Colors.GREEN}Inserting text before (plain): {insert_text[:60]}... <- {anchor[:40]}{Colors.RESET}")
+                                        content = content[:before_pos] + insert_text + content[before_pos:]
+                                        results['modifications'] += 1
 
+                        # REPLACE RULES
                         for replaceRules in rule.get('replace_rules', []):
                             if 'old_text' in replaceRules:
-                                old_text = replaceRules['old_text']
+                                raw_old = replaceRules['old_text']
                                 new_text = replaceRules['new_text']
-                                if old_text not in content and new_text not in content:
-                                    raise ValueError(f"Text '{old_text}' not found in file: {filePath}")
-                                elif new_text not in content:
-                                    print(f"  {Colors.GREEN}Replacing text: {old_text} {Colors.YELLOW}->{Colors.GREEN} {new_text}{Colors.RESET}")
-                                    content = content.replace(old_text, new_text)
+                                if _is_regex(raw_old):
+                                    pattern = _extract_pattern(raw_old)
+                                    if re.search(re.escape(new_text), content):
+                                        print(f"  {Colors.YELLOW}Regex replacement already applied -> {new_text[:60]}...{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
+                                        continue
+                                    if not re.search(pattern, content, re.DOTALL):
+                                        raise ValueError(f"Regex old_text pattern '{pattern}' not found in file: {filePath}")
+                                    content_new, count = re.subn(pattern, new_text, content, count=1)
+                                    if count:
+                                        print(f"  {Colors.GREEN}Regex replacing pattern /{pattern}/ -> {new_text[:60]}...{Colors.RESET}")
+                                        content = content_new
+                                        results['modifications'] += 1
+                                    else:
+                                        print(f"  {Colors.YELLOW}Regex replacement produced no change for /{pattern}/.{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
                                 else:
-                                    print(f"  {Colors.YELLOW}Text already replaced: {old_text} -> {new_text}{Colors.RESET}")
-                                    errorList['modWarnings'] += 1
+                                    old_text = raw_old
+                                    if old_text not in content and new_text not in content:
+                                        raise ValueError(f"Text '{old_text}' not found in file: {filePath}")
+                                    elif new_text not in content:
+                                        print(f"  {Colors.GREEN}Replacing text: {old_text[:60]}... -> {new_text[:60]}...{Colors.RESET}")
+                                        content = content.replace(old_text, new_text, 1)
+                                        results['modifications'] += 1
+                                    else:
+                                        print(f"  {Colors.YELLOW}Text already replaced: {old_text[:40]} -> {new_text[:40]}{Colors.RESET}")
+                                        errorList['modWarnings'] += 1
 
 
                         # Write modified contents
                         with open(filePath, 'w', encoding='utf-8') as f:
                             f.write(content)
 
-                        results['modifications'] += 1
                     #else:
                     #    print(f"Skipping file: {filename} (not found)")
 

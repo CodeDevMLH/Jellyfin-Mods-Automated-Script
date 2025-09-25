@@ -7,16 +7,15 @@ It's main intention is the ability to automate the modifying process of the Jell
 
 Below is an overview of its main functionality and usage:
 
-## Table of Contents
 - [Jellyfin-Mods-Automated-Script](#jellyfin-mods-automated-script)
     - [File Manipulation Tool (for but not only Jellyfin Web)](#file-manipulation-tool-for-but-not-only-jellyfin-web)
-  - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Usage](#usage)
     - [Prerequisites](#prerequisites)
     - [Configuration File](#configuration-file)
     - [Simple example yaml](#simple-example-yaml)
     - [Running the Script](#running-the-script)
+    - [Regex Markers Cheat Sheet](#regex-markers-cheat-sheet)
 
 ---
 
@@ -32,7 +31,8 @@ Below is an overview of its main functionality and usage:
 3. **File and Directory Copying**:
    - Supports multiple copy modes:
      - **Replace**: Overwrites existing files or directories in the destination.
-     - **Update**: Copies only if the source file is newer than the destination file.
+     - **Update**: Copies only if the source file is newer than the destination file (files only).
+     - **Copy**: Creates directories, if already exsisting, only copies non existing files in that folder
    - Handles both files and directories.
    - Generates warnings and error messages if issues occur (e.g., source file not found).
 
@@ -41,6 +41,7 @@ Below is an overview of its main functionality and usage:
    - Operations include:
      - Inserting text before or after specific content.
      - Replacing old text with new text.
+   - NEW: Regex support (prefix markers with `re:`) for `before_text`, `after_text`, and `old_text` to handle dynamical hashes (e.g. Jellyfin assets)
    - Recursively applies changes to files matching specified patterns in the destination directory.
 
 5. **Error and Warning Tracking**:
@@ -54,8 +55,10 @@ Below is an overview of its main functionality and usage:
 ## Usage
 
 ### Prerequisites
-- Ensure Python 3.x is installed.
-- Install the PyYAML-Library (pip install pyyaml)
+- Ensure Python 3.x is installed
+- Install dependencies:
+  - via file: `pip install -r requirements.txt`
+  - Or manually: `pip install PyYAML`
 
 ### Configuration File
 Create a YAML file with the following sections:
@@ -84,21 +87,40 @@ copy_rules:
 modification_rules:
   - file_pattern: "*.js"  # Files to modify (supports regex)
     insert_rules:
-      - after_text: "search text"  # Insert after this text
+      - after_text: "search text"  # Insert after this exact (plain) text
         insert_text: "new content"
-      - before_text: "target"  # Insert before this text
+      - before_text: "target"  # Insert before this exact (plain) text
         insert_text: "new content"
+      - before_text: 're:<link href="main\.jellyfin\.[0-9a-z]+\.css?[0-9a-z]+" rel="stylesheet">'  # Regex variant
+        insert_text: "<script>// injected</script>"
     replace_rules:
-      - old_text: "original"  # Text to replace
+      - old_text: "original"  # Plain substring replacement
         new_text: "replacement"
+      - old_text: 're:<link href="main\.jellyfin\.[0-9a-z]+\.css?[0-9a-z]+" rel="stylesheet">' # regex variant
+        new_text: 'somthing new (without regex!!!)'
 ```
 
 ### Running the Script
 Run the script by providing the path to your YAML configuration file, using the following command:
 ```bash
-python script.py <path_to_config_file>
+python customize-WebUI.py <path_to_config_file>
 ```
-So for example:
+So for example if config is in same folder:
 ```bash
 python customize-WebUI.py config.yaml
 ```
+
+### Regex Markers Cheat Sheet
+Prefix any marker with `re:` to interpret it as a Python Regex (DOTALL activ):
+
+Examples:
+```
+before_text: 're:<link href="main\\.jellyfin\\.[^"]+\\.css[^"]*" rel="stylesheet">'
+after_text:  're:data-backdroptype="movie,series,book">'
+old_text:    're:this\\.get\("libraryPageSize",!1\),10\);return 0===t\?0:t\|\|100}'
+```
+
+Notes:
+1. Properly escape backslashes (YAML + Regex!)
+2. The first match will be used (count=1 for replacement/insertion)
+3. Idempotency: The script checks whether the insertion or replacement text already exists to avoid duplicates
