@@ -15,7 +15,7 @@ Below is an overview of its main functionality and usage:
     - [Configuration File](#configuration-file)
     - [Simple example yaml](#simple-example-yaml)
     - [Running the Script](#running-the-script)
-    - [Regex Markers Cheat Sheet](#regex-markers-cheat-sheet)
+    - [Regex Marker](#regex-marker)
 
 ---
 
@@ -110,7 +110,7 @@ So for example if config is in same folder:
 python customize-WebUI.py config.yaml
 ```
 
-### Regex Markers Cheat Sheet
+### Regex Marker
 Prefix any marker with `re:` to interpret it as a Python Regex (DOTALL activ):
 
 Examples:
