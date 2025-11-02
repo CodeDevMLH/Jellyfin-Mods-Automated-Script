@@ -1,0 +1,85 @@
+# target directory for the modified files
+destination_directory: './web'
+
+# copy rules
+copy_rules:
+  - sources:
+      # add/replace new logos and icons 
+      - source: './img/icon-transparent.png'
+        target: './assets/img/icon-transparent.png'
+      - source: './img/banner-light.png'
+        target: './assets/img/banner-light.png'
+      - source: './img/banner-dark.png'
+        target: './assets/img/banner-dark.png'
+
+      - source: './img/bc8d51405ec040305a87.ico'
+        target: './bc8d51405ec040305a87.ico'
+      - source: './img/favicon.ico'
+        target: './favicon.ico'
+    mode: 'replace'
+
+
+  - sources:
+      - './seasonals' # add seasonals files from https://github.com/CodeDevMLH/Jellyfin-Seasonals
+      - './featured'  # add featured iframe files from https://github.com/CodeDevMLH/Jellyfin-Featured-Content-Bar
+      - './pictures'  # add pictures for eg. background on login page
+
+      - source: './img/background.png'
+        target: './assets/img/background.png'
+      - source: './img/logo.png'
+        target: './assets/img/logo.png'
+      - source: './img/favicon.png'
+        target: './assets/img/favicon.png'
+    mode: 'copy'  # copy directories and files
+
+# modification rules
+modification_rules:
+  # modify login page, insert own logo
+  - file_pattern: 'session-login-index-html\.[0-9a-z]+\.chunk\.js$'
+    insert_rules:
+      - after_text: '<div class="padded-left padded-right padded-bottom-page margin-auto-y">'
+        insert_text: '<img id="login-logo" src="/web/assets/img/banner-dark.png" width=350px style="padding: 0px;display:block; margin-left: auto; margin-right: auto;">'
+
+  # Instancename, Jellyseer I-Frame
+  - file_pattern: 'index.html'
+    insert_rules:
+      # add needed seasonals modifications from https://github.com/CodeDevMLH/Jellyfin-Seasonals
+      - before_text: '</body>'
+        insert_text: '<div class="seasonals-container"></div><script src="seasonals/seasonals.js"></script>'
+
+      # Page title and requests tab
+      - before_text: 're:<link href="main\.jellyfin\.[0-9a-z]+\.css[^.]+" rel="stylesheet">' # using regex to match the hash
+        # replace 'Your Title' with your own title (first row) and 'Request' with your own request tab name (second row)
+        insert_text: >
+          <script>document.addEventListener("DOMContentLoaded", function () { if (document.title === "Jellyfin") { document.title = "Your Title"; } const observer = new MutationObserver(function (mutations) { mutations.forEach(function (mutation) { if (mutation.type === 'childList') { if (document.title === "Jellyfin") { document.title = "Your Title"; } } }); }); observer.observe(document.querySelector('title'), { childList: true }); Object.defineProperty(document, 'title', { set: function (value) { if (value === "Jellyfin") { document.querySelector('title').textContent = "Your Title"; } else { document.querySelector('title').textContent = value; } }, get: function () { return document.querySelector('title').textContent; } }); });</script>
+          <script>const createRequestTab = () => {const title = document.createElement("div");title.classList.add("emby-button-foreground");title.innerText = "Requests";const button = document.createElement("button");button.type = "button";button.is = "empty-button";button.classList.add("emby-tab-button", "emby-button", "lastFocused");button.setAttribute("data-index", "2");button.setAttribute("id", "requestTab");button.appendChild(title);(function e() {const tabb = document.querySelector(".emby-tabs-slider");tabb ? !document.querySelector("#requestTab") && tabb.appendChild(button) : setTimeout(e, 500)})();}</script>
+    
+    replace_rules:
+      # Page title - replace 'Your Title' with your own title
+      - old_text: '<title>Jellyfin</title>'
+        new_text: '<title>Your Title</title>'
+
+  # Instancename, Jellyseer I-Frame
+  - file_pattern: '^main.jellyfin.bundle.js$' #file_pattern: '^main\.jellyfin\.bundle\.js$'
+    replace_rules:
+      # Set limit on how many days items should be in the next up section (last number)
+      - old_text: 'this.set("maxDaysForNextUp",e.toString(),!1);var t=parseInt(this.get("maxDaysForNextUp",!1),10);return 0===t?0:t||365}}'
+        new_text: 'this.set("maxDaysForNextUp",e.toString(),!1);var t=parseInt(this.get("maxDaysForNextUp",!1),10);return 0===t?0:t||28}}'
+       # Default user page size (last number), 99 fits perfect on most desktops
+      - old_text: 'this.get("libraryPageSize",!1),10);return 0===t?0:t||100}'
+        new_text: 'this.get("libraryPageSize",!1),10);return 0===t?0:t||99}'
+
+
+
+
+  - file_pattern: 'home-html\.[0-9a-z]+\.chunk\.js$'
+    insert_rules:
+      # featured iframe and requests iframe style from https://github.com/CodeDevMLH/Jellyfin-Featured-Content-Bar
+      - after_text: 'data-backdroptype="movie,series,book">'
+        insert_text: >
+          <style> .featurediframe {width: 95vw; height: 24em; display: block; border: 0; margin: -1em auto 0;} @media (min-width: 2100px) {.featurediframe {height: 33em;}} @media (max-width: 1599px) {.featurediframe {margin-top: 1.2em;}} @media (max-width: 800px) {.featurediframe {margin-top: 0.8em; height: 25em;}} </style> <iframe class="featurediframe" src="/web/featured/spotlight.html"></iframe>
+          <style>:root { --save-gut: max(env(safe-area-inset-left), .3%) } .requestIframe { margin: 0 .4em; padding: 0 var(--save-gut); width: calc(100% - (.4em * 2) - (var(--save-gut) * 2)); height: 90vh; border: none; position: absolute; top: 5.3em } @media (max-width: 1599px) { .requestIframe { height: 83vh; top: 8.2em; } }</style><script>setTimeout(() => { createRequestTab() }, 500)</script>
+
+      # request tab on main page (embedded iframe of your Jellyseer (Overseerr) instance)
+      - after_text: 'id="favoritesTab" data-index="1"> <div class="sections"></div> </div>'
+        insert_text: '<div class="tabContent pageTabContent" id="requestsTab" data-index="2"> <div class="sections"><iframe class="requestIframe" src="https://jellyseerr.yourDomainHere.com"></iframe></div> </div>'
