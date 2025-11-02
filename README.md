@@ -16,6 +16,7 @@ Below is an overview of its main functionality and usage:
     - [Simple example yaml](#simple-example-yaml)
     - [Running the Script](#running-the-script)
     - [Regex Marker](#regex-marker)
+    - [Hashed assets](#hashed-assets)
 
 ---
 
@@ -42,6 +43,7 @@ Below is an overview of its main functionality and usage:
      - Inserting text before or after specific content.
      - Replacing old text with new text.
    - NEW: Regex support (prefix markers with `re:`) for `before_text`, `after_text`, and `old_text` to handle dynamical hashes (e.g. Jellyfin assets)
+  - NEW: Wildcard-aware source/target resolution keeps hashed filenames in sync (use `icon*.png` or `icon?.png` patterns to overwrite existing hashed assets without renaming them)
    - Recursively applies changes to files matching specified patterns in the destination directory.
 
 5. **Error and Warning Tracking**:
@@ -75,7 +77,7 @@ copy_rules:
   - sources:  # Files/folders to copy
       - './source_folder' # Entire folder located from where you called the script
       - source: "./src/file.js"
-        target: "./dist/file.js"
+        target: "./dist/file*.js" # search and replace file.randomHash.js with file.js as file.sameRandomHash.js
     mode: "replace"  # Options: replace, update
 
     - sources:
@@ -124,3 +126,16 @@ Notes:
 1. Properly escape backslashes (YAML + Regex!)
 2. The first match will be used (count=1 for replacement/insertion)
 3. Idempotency: The script checks whether the insertion or replacement text already exists to avoid duplicates
+
+### Hashed assets
+When Jellyfin (or any build pipeline) appends random hashes to filenames, point both `source` and `target` to wildcard patterns. Example:
+
+```yaml
+copy_rules:
+  - sources:
+      - source: './img/banner-light.png'
+        target: './assets/img/banner-light*.png'
+    mode: 'replace'
+```
+
+The script resolves the source file as usual, finds the latest matching target file like `banner-light.b113d4d1c6c07fcb73f0.png`, and overwrites it in-place. If no match exists yet, it falls back to a non-hashed filename so assets are still created on first run.

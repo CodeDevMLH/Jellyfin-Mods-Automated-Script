@@ -16,7 +16,11 @@ copy_rules:
       # Wildcard (.*) copy with specific target path
       - source: './source_directory/.*.js'
         target: './target_directory/js_files'
-    
+
+      # copy and replace with wildcard (e.g. filename with hash)
+      - source: './source_directory/filename.js'
+        target: './target_directory/filename*.js'
+
     mode: 'replace'  # Overwrites existing files/folders
 
   - sources:

@@ -3,6 +3,7 @@ import shutil
 import yaml
 import re
 import sys
+from glob import glob
 
 # ANSI escape sequences for colors
 class Colors:
@@ -49,6 +50,56 @@ def ensureDirectory(path):
     os.makedirs(path, exist_ok=True)
 
 
+def resolveSourcePath(rawPath):
+    """Resolve a source path and support glob patterns for hashed filenames."""
+    normalized = os.path.normpath(rawPath)
+
+    # Direct hit fast path
+    if os.path.exists(normalized):
+        return normalized
+
+    # Allow globbing when hashed suffixes change per build (e.g. banner-light.*.png)
+    if any(token in rawPath for token in ('*', '?', '[')):
+        matches = glob(rawPath)
+        if matches:
+            # Prefer the most recently modified match to follow the latest build output
+            matches.sort(key=os.path.getmtime, reverse=True)
+            chosen = os.path.normpath(matches[0])
+            if len(matches) > 1:
+                print(f"Multiple matches for pattern {rawPath}, selecting newest: {chosen}")
+            else:
+                print(f"Resolved pattern {rawPath} -> {chosen}")
+            return chosen
+        raise FileNotFoundError(f"Pattern '{rawPath}' did not match any files")
+
+    # Nothing found -> propagate missing file
+    raise FileNotFoundError(f"Source path does not exist: {rawPath}")
+
+
+def resolveTargetPath(rawTarget, destinationDirectory):
+    """Resolve destination path, allowing wildcard patterns to reuse hashed filenames."""
+    relativeTarget = rawTarget.lstrip('./')
+    targetPattern = os.path.normpath(os.path.join(destinationDirectory, relativeTarget))
+
+    if any(token in relativeTarget for token in ('*', '?', '[')):
+        matches = glob(targetPattern)
+        if matches:
+            matches.sort(key=os.path.getmtime, reverse=True)
+            chosen = os.path.normpath(matches[0])
+            if len(matches) > 1:
+                print(f"Multiple destination matches for {rawTarget}, selecting newest: {chosen}")
+            else:
+                print(f"Resolved destination pattern {rawTarget} -> {chosen}")
+            return chosen
+
+        sanitizedName = re.sub(r'[\*\?\[\]]', '', os.path.basename(relativeTarget))
+        fallback = os.path.normpath(os.path.join(os.path.dirname(targetPattern), sanitizedName))
+        print(f"No existing destination matched {rawTarget}, using fallback: {fallback}")
+        return fallback
+
+    return targetPattern
+
+
 # MARK: Copy sources
 def copySources(config, destinationDirectory):
     """Copy files and folders according to copy rules."""
@@ -58,23 +109,24 @@ def copySources(config, destinationDirectory):
             try:
                 # Distinguish between sources with explicit target and without
                 if isinstance(source, dict):
-                    sourcePath = source['source']
+                    sourcePath = resolveSourcePath(source['source'])
                     
                     checkTargetPath = source['target']
                     
                     # Check for absolute paths in target and correct them if necessary
                     if os.path.isabs(checkTargetPath):
-                        targetPath = os.path.normpath(os.path.join(destinationDirectory, checkTargetPath.lstrip('./')))
-                        raise ValueError(f"{Colors.RED}Absolute path incorrect: {Colors.YELLOW}Corrected {checkTargetPath} to {targetPath}.{Colors.RESET}")
-                    else:
-                        #targetPath = os.path.join(destinationDirectory, source['target']) # old code
-                        targetPath = os.path.normpath(os.path.join(destinationDirectory, checkTargetPath))
+                        corrected = os.path.normpath(os.path.join(destinationDirectory, checkTargetPath.lstrip('./')))
+                        raise ValueError(f"{Colors.RED}Absolute path incorrect: {Colors.YELLOW}Corrected {checkTargetPath} to {corrected}.{Colors.RESET}")
+
+                    targetPath = resolveTargetPath(checkTargetPath, destinationDirectory)
                     
 
                 else:
-                    sourcePath = source
-                    #targetPath = os.path.join(destinationDirectory, os.path.basename(sourcePath)) # old code
-                    targetPath = os.path.normpath(os.path.join(destinationDirectory, os.path.basename(sourcePath)))
+                    sourcePath = resolveSourcePath(source)
+                    if os.path.isdir(sourcePath):
+                        targetPath = os.path.normpath(os.path.join(destinationDirectory, os.path.basename(sourcePath)))
+                    else:
+                        targetPath = resolveTargetPath(os.path.basename(sourcePath), destinationDirectory)
 
                     # Check if source exists
                     if not os.path.exists(sourcePath):

@@ -6,16 +6,23 @@ copy_rules:
   - sources:
       # add/replace new logos and icons 
       - source: './img/icon-transparent.png'
-        target: './assets/img/icon-transparent.png'
+        target: './icon-transparent*.png'
       - source: './img/banner-light.png'
-        target: './assets/img/banner-light.png'
+        target: './banner-light*.png'
       - source: './img/banner-dark.png'
-        target: './assets/img/banner-dark.png'
+        target: './banner-dark*.png'
 
-      - source: './img/bc8d51405ec040305a87.ico'
-        target: './bc8d51405ec040305a87.ico'
+      - source: './img/favicon_32x32.ico'
+        target: './favicon*.ico'
       - source: './img/favicon.ico'
-        target: './favicon.ico'
+        target: './favicon*.ico'
+      - source: './img/touchicon_180x180.png'
+        target: './touchicon*.png'
+      - source: './img/notificationicon.png'
+        target: './notificationicon*.png'
+        
+      - source: './img/favicons_dir'
+        target: './favicons'
     mode: 'replace'
 
 
@@ -28,8 +35,6 @@ copy_rules:
         target: './assets/img/background.png'
       - source: './img/logo.png'
         target: './assets/img/logo.png'
-      - source: './img/favicon.png'
-        target: './assets/img/favicon.png'
     mode: 'copy'  # copy directories and files
 
 # modification rules
