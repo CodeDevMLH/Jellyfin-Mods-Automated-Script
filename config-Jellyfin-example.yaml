@@ -27,7 +27,7 @@ copy_rules:
 
 
   - sources:
-      - './seasonals' # add seasonals files from https://github.com/CodeDevMLH/Jellyfin-Seasonals/tree/main/seasonals
+      #- './seasonals' # add seasonals files from https://github.com/CodeDevMLH/Jellyfin-Seasonals/tree/main/seasonals --> now available as plugin!
       - './featured'  # add featured iframe files (only spotlight.html, script.js and styles.css are needed) from https://github.com/CodeDevMLH/Jellyfin-Featured-Content-Bar
       - './pictures'  # add pictures for eg. background on login page for futher use with 'custom css' function in jellyfin 
 
@@ -45,26 +45,14 @@ modification_rules:
       - after_text: '<div class="padded-left padded-right padded-bottom-page margin-auto-y">'
         insert_text: '<img id="login-logo" src="/web/assets/img/banner-dark.png" width=350px style="padding: 0px;display:block; margin-left: auto; margin-right: auto;">'
 
-  # Instancename, Seasonals, Jellyseer I-Frame
+  # Jellyseer Tab Button
   - file_pattern: 'index.html'
     insert_rules:
-      # add needed seasonals modifications from https://github.com/CodeDevMLH/Jellyfin-Seasonals
-      - before_text: '</body>'
-        insert_text: '<div class="seasonals-container"></div><script src="seasonals/seasonals.js"></script>'
-
-      # Page title and requests tab
+      # IMPORTANT: replace 'Request' with your own request tab name (the name how the Jellyseer tab shuold be named, line 55)
+      # requests tab
       - before_text: 're:<link href="main\.jellyfin\.[0-9a-z]+\.css[^.]+" rel="stylesheet">' # using regex to match the hash
-        # IMPORTANT: replace 'Your Title' with your own title (first row of insert text, line 60)
-        # IMPORTANT: replace 'Request' with your own request tab name (the name how the Jellyseer tab shuold be named, second row, line 61)
-        # Hint: If you don't want to add the requests tab, just remove the second row of insert_text (line 61) and the corresponding replace_rule (lines 88 and 90-93)
         insert_text: >
-          <script>document.addEventListener("DOMContentLoaded", function () { if (document.title === "Jellyfin") { document.title = "Your Title"; } const observer = new MutationObserver(function (mutations) { mutations.forEach(function (mutation) { if (mutation.type === 'childList') { if (document.title === "Jellyfin") { document.title = "Your Title"; } } }); }); observer.observe(document.querySelector('title'), { childList: true }); Object.defineProperty(document, 'title', { set: function (value) { if (value === "Jellyfin") { document.querySelector('title').textContent = "Your Title"; } else { document.querySelector('title').textContent = value; } }, get: function () { return document.querySelector('title').textContent; } }); });</script>
           <script>const createRequestTab = () => {const title = document.createElement("div");title.classList.add("emby-button-foreground");title.innerText = "Requests";const button = document.createElement("button");button.type = "button";button.is = "empty-button";button.classList.add("emby-tab-button", "emby-button", "lastFocused");button.setAttribute("data-index", "2");button.setAttribute("id", "requestTab");button.appendChild(title);(function e() {const tabb = document.querySelector(".emby-tabs-slider");tabb ? !document.querySelector("#requestTab") && tabb.appendChild(button) : setTimeout(e, 500)})();}</script>
-    
-    replace_rules:
-      # Page title - replace 'Your Title' with your own title
-      - old_text: '<title>Jellyfin</title>'
-        new_text: '<title>Your Title</title>'
 
   # Set default values for 'Next Up' days and user page size
   - file_pattern: '^main.jellyfin.bundle.js$' #file_pattern: '^main\.jellyfin\.bundle\.js$'
@@ -81,13 +69,13 @@ modification_rules:
   - file_pattern: 'home-html\.[0-9a-z]+\.chunk\.js$'
     insert_rules:
       # featured iframe and requests iframe style from https://github.com/CodeDevMLH/Jellyfin-Featured-Content-Bar
-      # IMPORTANT: remove line 88 if you don't want to add the requests tab
+      # IMPORTANT: remove line 76 if you don't want to add the requests tab
       - after_text: 'data-backdroptype="movie,series,book">'
         insert_text: >
           <style> .featurediframe {width: 95vw; height: 24em; display: block; border: 0; margin: -1em auto 0;} @media (min-width: 2100px) {.featurediframe {height: 33em;}} @media (max-width: 1599px) {.featurediframe {margin-top: 1.2em;}} @media (max-width: 800px) {.featurediframe {margin-top: 0.8em; height: 25em;}} </style> <iframe class="featurediframe" src="/web/featured/spotlight.html"></iframe>
           <style>:root { --save-gut: max(env(safe-area-inset-left), .3%) } .requestIframe { margin: 0 .4em; padding: 0 var(--save-gut); width: calc(100% - (.4em * 2) - (var(--save-gut) * 2)); height: 90vh; border: none; position: absolute; top: 5.3em } @media (max-width: 1599px) { .requestIframe { height: 83vh; top: 8.2em; } }</style><script>setTimeout(() => { createRequestTab() }, 500)</script>
 
       # request tab on main page (embedded iframe of your Jellyseer (Overseerr) instance)
-      # change 'jellyseerr.yourDomainHere.com' to the URL of your Jellyseer (Overseerr) instance in line 93
+      # change 'jellyseerr.yourDomainHere.com' to the URL of your Jellyseer (Overseerr) instance in line 81
       - after_text: 'id="favoritesTab" data-index="1"> <div class="sections"></div> </div>'
         insert_text: '<div class="tabContent pageTabContent" id="requestsTab" data-index="2"> <div class="sections"><iframe class="requestIframe" src="https://jellyseerr.yourDomainHere.com"></iframe></div> </div>'
